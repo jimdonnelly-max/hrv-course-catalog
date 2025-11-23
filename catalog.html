@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>High School Course Catalog</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        /* Essential Styling */
+        .filter-control {
+            margin-bottom: 15px;
+            display: inline-block;
+            margin-right: 20px;
+            width: 100%; 
+            max-width: 250px;
+            font-family: sans-serif;
+        }
+        #filterArea {
+            padding-bottom: 20px;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 20px;
+        }
+        #courseTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: sans-serif;
+            font-size: 14px;
+        }
+        #courseTable th, #courseTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #courseTable th {
+            background-color: #f2f2f2;
+            cursor: pointer;
+            position: relative;
+        }
+        .sort-indicator {
+            position: absolute;
+            right: 8px;
+            top: 8px;
+        }
+        .btn-info {
+            background-color: #007bff;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        /* Modal Styling (Pure JS implementation) */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .close-button {
+            float: right;
+            font-size: 24px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid mt-4">
+    
+    <div id="filterArea">
+        <div class="filter-control">
+            <label for="departmentFilter">Filter by Department:</label>
+            <select id="departmentFilter" class="form-control form-control-sm">
+                <option value="">Show All Departments</option>
+            </select>
+        </div>
+        <div class="filter-control">
+            <label for="lengthFilter">Filter by Course Length:</label>
+            <select id="lengthFilter" class="form-control form-control-sm">
+                <option value="">Show All Lengths</option>
+                <option value="Year-Long">Year-Long</option>
+                <option value="Semester">Semester</option>
+            </select>
+        </div>
+        <div class="filter-control">
+            <label for="gradeFilter">Filter by Grade Level:</label>
+            <select id="gradeFilter" class="form-control form-control-sm">
+                <option value="">Show All Grades</option>
+                <option value="9">Grade 9</option>
+                <option value="10">Grade 10</option>
+                <option value="11">Grade 11</option>
+                <option value="12">Grade 12</option>
+            </select>
+        </div>
+        <button id="clearFilters" class="btn-info">Clear Filters</button>
+    </div>
+    
+    <div id="table-container">
+        <p id="loading-message">Loading course data...</p>
+        <table id="courseTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th data-sort="Department">Department <span class="sort-indicator"></span></th>
+                    <th data-sort="CourseTitle">Course Title (No.) <span class="sort-indicator"></span></th>
+                    <th data-sort="GradesOffered">Grades Offered <span class="sort-indicator"></span></th>
+                    <th data-sort="Length">Year/Sem <span class="sort-indicator"></span></th>
+                    <th>Prerequisites</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody id="courseTableBody">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="courseModal" class="modal">
+    <div class="modal-content">
+        <span class="close-button" onclick="document.getElementById('courseModal').style.display='none'">&times;</span>
+        <h5 id="modalTitle">Course Title</h5>
+        <p id="modalDescription"></p>
+        <hr>
+        <p id="modalFees"></p>
+        <p id="modalCollege"></p>
+        <button class="btn-info" onclick="document.getElementById('courseModal').style.display='none'">Close</button>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+
+<script>
+    // --- Configuration ---
+    // The link to your FinalSite TSV file
+    const DATA_URL = 'https://www.hoodriver.k12.or.us/fs/resource-manager/view/7114102b-9e5a-4b48-b890-1eac3d703f98'; 
+    
+    const COL_MAP = {
+        Department: 'Department',
+        CourseTitle: 'Course Title',
+        CourseNumber: 'Course Number',
+        HonorsOption: 'Honors Option',
+        YearLong: 'Year Long',
+        Semester: 'Semester',
+        Grade9: 'Grade 9',
+        Grade10: 'Grade 10',
+        Grade11: 'Grade 11',
+        Grade12: 'Grade 12',
+        Prerequisites: 'Prerequisites',
+        FeesEquipment: 'Fees/Equipment',
+        CourseDescription: 'Course Description',
+        CollegeCourseAlignment: 'College Course Alignment'
+    };
+    let ALL_COURSE_DATA = [];
+    let FILTERED_DATA = [];
+    let currentSortColumn = 'Department';
+    let currentSortDirection = 'asc';
+
+    // --- Data Parsing Function (TSV to Array of Objects) ---
+    function parseTSV(tsvString) {
+        // Use Papa Parse to handle complex TSV parsing
+        const results = Papa.parse(tsvString, {
+            header: true,
+            delimiter: '\t',
+            skipEmptyLines: true,
+        });
+
+        if (results.errors.length > 0) {
+            console.error("Parsing Errors:", results.errors);
+            return [];
+        }
+
+        const data = results.data.map(course => {
+            // Map the parsed keys to our simplified JS keys
+            const processedCourse = {};
+            for (const simpleKey in COL_MAP) {
+                processedCourse[simpleKey] = course[COL_MAP[simpleKey]] ? course[COL_MAP[simpleKey]].trim() : '';
+            }
+
+            // Pre-process calculated fields
+            const grades = [];
+            if (processedCourse.Grade9 === 'TRUE') grades.push('9');
+            if (processedCourse.Grade10 === 'TRUE') grades.push('10');
+            if (processedCourse.Grade11 === 'TRUE') grades.push('11');
+            if (processedCourse.Grade12 === 'TRUE') grades.push('12');
+            
+            processedCourse.GradesOffered = grades.join(', ');
+            processedCourse.GradesFilter = grades.join('|'); 
+
+            processedCourse.Length = '';
+            if (processedCourse.YearLong === 'TRUE') {
+                processedCourse.Length = 'Year-Long';
+            } else if (processedCourse.Semester === 'TRUE') {
+                processedCourse.Length = 'Semester';
+            }
+            
+            return processedCourse;
+        });
+
+        return data.filter(c => c.Department && c.Department.trim() !== '');
+    }
+
+    // --- Table Rendering (Vanilla JS) ---
+    function renderTable(data) {
+        const tbody = document.getElementById('courseTableBody');
+        tbody.innerHTML = '';
+        
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No courses match your current filters.</td></tr>';
+            return;
+        }
+
+        data.forEach(course => {
+            const tr = document.createElement('tr');
+            const cleanData = (str) => str ? str.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : '';
+
+            const detailedDescription = `
+                <button class="btn-info" 
+                    onclick="showModal(
+                        '${cleanData(course.CourseTitle)}',
+                        '${cleanData(course.CourseDescription)}',
+                        '${cleanData(course.FeesEquipment)}',
+                        '${cleanData(course.CollegeCourseAlignment)}'
+                    )">
+                    View Details
+                </button>
+            `;
+
+            tr.innerHTML = `
+                <td>${course.Department}</td>
+                <td>${course.CourseTitle} (${course.CourseNumber}) ${course.HonorsOption === 'TRUE' ? ' <strong>- H</strong>' : ''}</td>
+                <td>${course.GradesOffered}</td>
+                <td>${course.Length}</td>
+                <td>${course.Prerequisites}</td>
+                <td>${detailedDescription}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+        document.getElementById('courseTable').style.display = 'table';
+        document.getElementById('loading-message').style.display = 'none';
+    }
+
+    // --- Sorting (Vanilla JS) ---
+    function sortData(column, direction) {
+        // [Sorting logic remains the same as previous attempt]
+        FILTERED_DATA.sort((a, b) => {
+            let valA = a[column];
+            let valB = b[column];
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        document.querySelectorAll('th[data-sort]').forEach(th => {
+            const indicator = th.querySelector('.sort-indicator');
+            indicator.textContent = th.getAttribute('data-sort') === column 
+                                      ? (direction === 'asc' ? ' ▲' : ' ▼') 
+                                      : '';
+        });
+
+        renderTable(FILTERED_DATA);
+    }
+
+    // --- Filtering (Vanilla JS) ---
+    function applyFilters() {
+        // [Filtering logic remains the same as previous attempt]
+        const deptFilter = document.getElementById('departmentFilter').value;
+        const lengthFilter = document.getElementById('lengthFilter').value;
+        const gradeFilter = document.getElementById('gradeFilter').value;
+
+        FILTERED_DATA = ALL_COURSE_DATA.filter(course => {
+            if (deptFilter && course.Department !== deptFilter) return false;
+            if (lengthFilter && course.Length !== lengthFilter) return false;
+            if (gradeFilter && course.GradesFilter.indexOf(gradeFilter) === -1) return false;
+            return true;
+        });
+        sortData(currentSortColumn, currentSortDirection);
+    }
+
+    // --- Modal Handler (Vanilla JS) ---
+    window.showModal = function(title, description, fees, college) {
+        document.getElementById('modalTitle').textContent = title;
+        document.getElementById('modalDescription').textContent = description;
+        document.getElementById('modalFees').innerHTML = `<strong>Fees/Equipment:</strong> ${fees || 'None'}`;
+        document.getElementById('modalCollege').innerHTML = `<strong>College Alignment:</strong> ${college || 'N/A'}`;
+        document.getElementById('courseModal').style.display = 'flex';
+    }
+
+    // --- Initialization ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // 1. Fetch Data
+        fetch(DATA_URL)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.text();
+            })
+            .then(tsvText => {
+                // 2. Parse and Store Data
+                ALL_COURSE_DATA = parseTSV(tsvText);
+                FILTERED_DATA = ALL_COURSE_DATA;
+
+                if (ALL_COURSE_DATA.length === 0) {
+                    document.getElementById('loading-message').textContent = 'Error: No data found or parsing failed. Check TSV format.';
+                    return;
+                }
+
+                // 3. Populate Filters
+                const departments = [...new Set(ALL_COURSE_DATA.map(c => c.Department))].sort();
+                const deptSelect = document.getElementById('departmentFilter');
+                departments.forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept;
+                    option.textContent = dept;
+                    deptSelect.appendChild(option);
+                });
+
+                // 4. Attach Event Listeners
+                document.getElementById('departmentFilter').addEventListener('change', applyFilters);
+                document.getElementById('lengthFilter').addEventListener('change', applyFilters);
+                document.getElementById('gradeFilter').addEventListener('change', applyFilters);
+                document.getElementById('clearFilters').addEventListener('click', () => {
+                    document.getElementById('departmentFilter').value = '';
+                    document.getElementById('lengthFilter').value = '';
+                    document.getElementById('gradeFilter').value = '';
+                    applyFilters();
+                });
+
+                // 5. Attach Sorting Listeners
+                document.querySelectorAll('th[data-sort]').forEach(header => {
+                    header.addEventListener('click', () => {
+                        const column = header.getAttribute('data-sort');
+                        let direction = currentSortColumn === column ? (currentSortDirection === 'asc' ? 'desc' : 'asc') : 'asc';
+                        currentSortColumn = column;
+                        currentSortDirection = direction;
+                        sortData(column, direction);
+                    });
+                });
+                
+                // 6. Initial Render
+                sortData(currentSortColumn, currentSortDirection);
+            })
+            .catch(error => {
+                console.error('Fetch Error:', error);
+                document.getElementById('loading-message').innerHTML = `
+                    **Error:** The FinalSite server is blocking access (CORS).
+                    <br>To display this content with filtering, you must use the **iFrame Static Host** method.
+                    <br>Please follow the instructions in Step 2/3.
+                `;
+            });
+    });
+</script>
+</body>
+</html>

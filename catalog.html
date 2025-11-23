@@ -47,7 +47,7 @@
             border-radius: 3px;
             cursor: pointer;
         }
-        /* Modal Styling (Pure JS implementation) */
+        /* Modal Styling */
         .modal {
             position: fixed;
             top: 0;
@@ -109,7 +109,7 @@
     </div>
     
     <div id="table-container">
-        <p id="loading-message">Loading course data...</p>
+        <p id="loading-message">Loading course data from Google Sheets...</p>
         <table id="courseTable" style="display:none;">
             <thead>
                 <tr>
@@ -144,8 +144,8 @@
 
 <script>
     // --- Configuration ---
-    // The link to your FinalSite TSV file
-    const DATA_URL = 'https://www.hoodriver.k12.or.us/fs/resource-manager/view/7114102b-9e5a-4b48-b890-1eac3d703f98'; 
+    // *** NEW LIVE DATA URL (Google Sheets TSV) ***
+    const DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTXhSHFz9JLHwMsmwcNI_9Oqw78YrZlzq5Wkxn6KjlSRvkMuHNbcV92aJTGROUuGt36hbv2sIJczpHd/pub?gid=0&single=true&output=tsv'; 
     
     const COL_MAP = {
         Department: 'Department',
@@ -170,10 +170,10 @@
 
     // --- Data Parsing Function (TSV to Array of Objects) ---
     function parseTSV(tsvString) {
-        // Use Papa Parse to handle complex TSV parsing
+        // Use Papa Parse to handle TSV parsing
         const results = Papa.parse(tsvString, {
             header: true,
-            delimiter: '\t',
+            delimiter: '\t', // Ensures we use Tab delimiter for the TSV output
             skipEmptyLines: true,
         });
 
@@ -183,7 +183,6 @@
         }
 
         const data = results.data.map(course => {
-            // Map the parsed keys to our simplified JS keys
             const processedCourse = {};
             for (const simpleKey in COL_MAP) {
                 processedCourse[simpleKey] = course[COL_MAP[simpleKey]] ? course[COL_MAP[simpleKey]].trim() : '';
@@ -254,7 +253,6 @@
 
     // --- Sorting (Vanilla JS) ---
     function sortData(column, direction) {
-        // [Sorting logic remains the same as previous attempt]
         FILTERED_DATA.sort((a, b) => {
             let valA = a[column];
             let valB = b[column];
@@ -275,7 +273,6 @@
 
     // --- Filtering (Vanilla JS) ---
     function applyFilters() {
-        // [Filtering logic remains the same as previous attempt]
         const deptFilter = document.getElementById('departmentFilter').value;
         const lengthFilter = document.getElementById('lengthFilter').value;
         const gradeFilter = document.getElementById('gradeFilter').value;
@@ -303,6 +300,7 @@
         // 1. Fetch Data
         fetch(DATA_URL)
             .then(response => {
+                // Check if the request was successful
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -314,7 +312,7 @@
                 FILTERED_DATA = ALL_COURSE_DATA;
 
                 if (ALL_COURSE_DATA.length === 0) {
-                    document.getElementById('loading-message').textContent = 'Error: No data found or parsing failed. Check TSV format.';
+                    document.getElementById('loading-message').textContent = 'Error: No data found or parsing failed. Check Google Sheet format.';
                     return;
                 }
 
@@ -356,9 +354,9 @@
             .catch(error => {
                 console.error('Fetch Error:', error);
                 document.getElementById('loading-message').innerHTML = `
-                    **Error:** The FinalSite server is blocking access (CORS).
-                    <br>To display this content with filtering, you must use the **iFrame Static Host** method.
-                    <br>Please follow the instructions in Step 2/3.
+                    **Error loading data.** This issue is likely due to the browser blocking external data access,
+                    even from the GitHub host. This can happen with Google Sheet links.
+                    <br>Please ensure your Google Sheet is **publicly published** and try again.
                 `;
             });
     });

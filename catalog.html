@@ -47,7 +47,7 @@
             border-radius: 3px;
             cursor: pointer;
         }
-        /* Modal Styling */
+        /* MODAL OPTIMIZATION FOR SMALL SCREENS (IPAD) */
         .modal {
             position: fixed;
             top: 0;
@@ -64,9 +64,9 @@
             background-color: white;
             padding: 20px;
             border-radius: 8px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 90vh;
+            max-width: 90vw; /* Take up 90% of viewport width */
+            max-height: 90vh; /* Take up 90% of viewport height */
+            width: 600px; 
             overflow-y: auto;
         }
         .close-button {
@@ -114,10 +114,11 @@
             <thead>
                 <tr>
                     <th data-sort="Department">Department <span class="sort-indicator"></span></th>
-                    <th data-sort="CourseTitle">Course Title (No.) <span class="sort-indicator"></span></th>
-                    <th data-sort="GradesOffered">Grades Offered <span class="sort-indicator"></span></th>
+                    <th data-sort="CourseNumber">Course No. <span class="sort-indicator"></span></th>
+                    <th data-sort="CourseTitle">Course Title <span class="sort-indicator"></span></th>
+                    <th data-sort="PrimaryCredit">Credit Type <span class="sort-indicator"></span></th>
+                    <th data-sort="GradesOffered">Grades <span class="sort-indicator"></span></th>
                     <th data-sort="Length">Year/Sem <span class="sort-indicator"></span></th>
-                    <th>Prerequisites</th>
                     <th>Details</th>
                 </tr>
             </thead>
@@ -131,8 +132,10 @@
     <div class="modal-content">
         <span class="close-button" onclick="document.getElementById('courseModal').style.display='none'">&times;</span>
         <h5 id="modalTitle">Course Title</h5>
-        <p id="modalDescription"></p>
+        <p id="modalCreditType"></p>
+        <p id="modalPrerequisites"></p>
         <hr>
+        <p id="modalDescription"></p>
         <p id="modalFees"></p>
         <p id="modalCollege"></p>
         <button class="btn-info" onclick="document.getElementById('courseModal').style.display='none'">Close</button>
@@ -144,11 +147,11 @@
 
 <script>
     // --- Configuration ---
-    // *** NEW LIVE DATA URL (Google Sheets TSV) ***
     const DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTXhSHFz9JLHwMsmwcNI_9Oqw78YrZlzq5Wkxn6KjlSRvkMuHNbcV92aJTGROUuGt36hbv2sIJczpHd/pub?gid=0&single=true&output=tsv'; 
     
     const COL_MAP = {
         Department: 'Department',
+        TranscriptCreditType: 'Transcript Credit Type', // Full credit string (e.g., CE, SC, FA)
         CourseTitle: 'Course Title',
         CourseNumber: 'Course Number',
         HonorsOption: 'Honors Option',
@@ -158,7 +161,7 @@
         Grade10: 'Grade 10',
         Grade11: 'Grade 11',
         Grade12: 'Grade 12',
-        Prerequisites: 'Prerequisites',
+        Prerequisites: 'Prerequisites', // MOVED to modal
         FeesEquipment: 'Fees/Equipment',
         CourseDescription: 'Course Description',
         CollegeCourseAlignment: 'College Course Alignment'
@@ -170,10 +173,9 @@
 
     // --- Data Parsing Function (TSV to Array of Objects) ---
     function parseTSV(tsvString) {
-        // Use Papa Parse to handle TSV parsing
         const results = Papa.parse(tsvString, {
             header: true,
-            delimiter: '\t', // Ensures we use Tab delimiter for the TSV output
+            delimiter: '\t',
             skipEmptyLines: true,
         });
 
@@ -188,7 +190,7 @@
                 processedCourse[simpleKey] = course[COL_MAP[simpleKey]] ? course[COL_MAP[simpleKey]].trim() : '';
             }
 
-            // Pre-process calculated fields
+            // --- PROCESSING ---
             const grades = [];
             if (processedCourse.Grade9 === 'TRUE') grades.push('9');
             if (processedCourse.Grade10 === 'TRUE') grades.push('10');
@@ -198,12 +200,10 @@
             processedCourse.GradesOffered = grades.join(', ');
             processedCourse.GradesFilter = grades.join('|'); 
 
-            processedCourse.Length = '';
-            if (processedCourse.YearLong === 'TRUE') {
-                processedCourse.Length = 'Year-Long';
-            } else if (processedCourse.Semester === 'TRUE') {
-                processedCourse.Length = 'Semester';
-            }
+            processedCourse.Length = processedCourse.YearLong === 'TRUE' ? 'Year-Long' : (processedCourse.Semester === 'TRUE' ? 'Semester' : '');
+            
+            // 2) Add PrimaryCredit for sorting (takes the first type if multiple exist)
+            processedCourse.PrimaryCredit = processedCourse.TranscriptCreditType.split(',')[0].trim();
             
             return processedCourse;
         });
@@ -225,13 +225,16 @@
             const tr = document.createElement('tr');
             const cleanData = (str) => str ? str.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : '';
 
+            // Data passed to the modal
             const detailedDescription = `
                 <button class="btn-info" 
                     onclick="showModal(
                         '${cleanData(course.CourseTitle)}',
                         '${cleanData(course.CourseDescription)}',
                         '${cleanData(course.FeesEquipment)}',
-                        '${cleanData(course.CollegeCourseAlignment)}'
+                        '${cleanData(course.CollegeCourseAlignment)}',
+                        '${cleanData(course.Prerequisites)}', 
+                        '${cleanData(course.TranscriptCreditType)}'
                     )">
                     View Details
                 </button>
@@ -239,10 +242,11 @@
 
             tr.innerHTML = `
                 <td>${course.Department}</td>
-                <td>${course.CourseTitle} (${course.CourseNumber}) ${course.HonorsOption === 'TRUE' ? ' <strong>- H</strong>' : ''}</td>
+                <td>${course.CourseNumber}</td>
+                <td>${course.CourseTitle} ${course.HonorsOption === 'TRUE' ? ' <strong>- H</strong>' : ''}</td>
+                <td>${course.TranscriptCreditType}</td>
                 <td>${course.GradesOffered}</td>
                 <td>${course.Length}</td>
-                <td>${course.Prerequisites}</td>
                 <td>${detailedDescription}</td>
             `;
             tbody.appendChild(tr);
@@ -287,8 +291,11 @@
     }
 
     // --- Modal Handler (Vanilla JS) ---
-    window.showModal = function(title, description, fees, college) {
+    // Added prerequisites and credit type arguments
+    window.showModal = function(title, description, fees, college, prerequisites, creditType) {
         document.getElementById('modalTitle').textContent = title;
+        document.getElementById('modalCreditType').innerHTML = `<strong>Credit Type(s):</strong> ${creditType || 'N/A'}`;
+        document.getElementById('modalPrerequisites').innerHTML = `<strong>Prerequisites:</strong> ${prerequisites || 'None'}`;
         document.getElementById('modalDescription').textContent = description;
         document.getElementById('modalFees').innerHTML = `<strong>Fees/Equipment:</strong> ${fees || 'None'}`;
         document.getElementById('modalCollege').innerHTML = `<strong>College Alignment:</strong> ${college || 'N/A'}`;
@@ -300,7 +307,6 @@
         // 1. Fetch Data
         fetch(DATA_URL)
             .then(response => {
-                // Check if the request was successful
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -354,9 +360,8 @@
             .catch(error => {
                 console.error('Fetch Error:', error);
                 document.getElementById('loading-message').innerHTML = `
-                    **Error loading data.** This issue is likely due to the browser blocking external data access,
-                    even from the GitHub host. This can happen with Google Sheet links.
-                    <br>Please ensure your Google Sheet is **publicly published** and try again.
+                    **Error loading data.** This issue is likely due to the browser blocking external data access.
+                    <br>Please ensure your Google Sheet is **publicly published** and the GitHub host is configured correctly.
                 `;
             });
     });

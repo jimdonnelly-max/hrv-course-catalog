@@ -113,13 +113,13 @@
         <table id="courseTable" style="display:none;">
             <thead>
                 <tr>
+                    <th>Details</th> 
                     <th data-sort="Department">Department <span class="sort-indicator"></span></th>
                     <th data-sort="CourseNumber">Course No. <span class="sort-indicator"></span></th>
                     <th data-sort="CourseTitle">Course Title <span class="sort-indicator"></span></th>
                     <th data-sort="PrimaryCredit">Credit Type <span class="sort-indicator"></span></th>
                     <th data-sort="GradesOffered">Grades <span class="sort-indicator"></span></th>
                     <th data-sort="Length">Year/Sem <span class="sort-indicator"></span></th>
-                    <th>Details</th>
                 </tr>
             </thead>
             <tbody id="courseTableBody">
@@ -202,7 +202,7 @@
 
             processedCourse.Length = processedCourse.YearLong === 'TRUE' ? 'Year-Long' : (processedCourse.Semester === 'TRUE' ? 'Semester' : '');
             
-            // **CHANGE:** Sets the PrimaryCredit for sorting (first item only)
+            // Sets the PrimaryCredit for sorting (first item only)
             const credits = processedCourse.TranscriptCreditType.split(',');
             processedCourse.PrimaryCredit = credits.length > 0 ? credits[0].trim() : processedCourse.TranscriptCreditType;
             
@@ -217,6 +217,7 @@
         const tbody = document.getElementById('courseTableBody');
         tbody.innerHTML = '';
         
+        // Note: The colspan count must be 7 to cover all columns
         if (data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No courses match your current filters.</td></tr>';
             return;
@@ -226,7 +227,7 @@
             const tr = document.createElement('tr');
             const cleanData = (str) => str ? str.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : '';
 
-            // Data passed to the modal
+            // 1. Details Button (Leftmost column)
             const detailedDescription = `
                 <button class="btn-info" 
                     onclick="showModal(
@@ -242,14 +243,7 @@
             `;
 
             tr.innerHTML = `
-                <td>${course.Department}</td>
-                <td>${course.CourseNumber}</td>
-                <td>${course.CourseTitle} ${course.HonorsOption === 'TRUE' ? ' <strong>- H</strong>' : ''}</td>
-                <td>${course.TranscriptCreditType}</td>
-                <td>${course.GradesOffered}</td>
-                <td>${course.Length}</td>
-                <td>${detailedDescription}</td>
-            `;
+                <td>${detailedDescription}</td> <td>${course.Department}</td> <td>${course.CourseNumber}</td> <td>${course.CourseTitle} ${course.HonorsOption === 'TRUE' ? ' <strong>- H</strong>' : ''}</td> <td>${course.TranscriptCreditType}</td> <td>${course.GradesOffered}</td> <td>${course.Length}</td> `;
             tbody.appendChild(tr);
         });
         document.getElementById('courseTable').style.display = 'table';

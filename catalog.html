@@ -74,6 +74,12 @@
             font-size: 24px;
             cursor: pointer;
         }
+        /* New styling for the button in the modal footer */
+        #modalFooterButtons {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
     </style>
 </head>
 <body>
@@ -138,7 +144,11 @@
         <p id="modalDescription"></p>
         <p id="modalFees"></p>
         <p id="modalCollege"></p>
-        <button class="btn-info" onclick="document.getElementById('courseModal').style.display='none'">Close</button>
+        
+        <div id="modalFooterButtons">
+            <button class="btn-info" id="translateButton">Translate to Spanish</button>
+            <button class="btn-info" onclick="document.getElementById('courseModal').style.display='none'">Close</button>
+        </div>
     </div>
 </div>
 
@@ -170,8 +180,24 @@
     let FILTERED_DATA = [];
     let currentSortColumn = 'Department';
     let currentSortDirection = 'asc';
+    let currentDescription = ''; // New variable to hold the description for translation
 
-    // --- Data Parsing Function (TSV to Array of Objects) ---
+    // --- New Translation Function ---
+    window.translateDescription = function(description) {
+        if (!description) {
+            alert("No course description available to translate.");
+            return;
+        }
+        // Encode the text and build the Google Translate URL
+        const encodedText = encodeURIComponent(description);
+        // Translate from English (en) to Spanish (es)
+        const translateUrl = `https://translate.google.com/?sl=en&tl=es&text=${encodedText}&op=translate`;
+        
+        // Open the translation in a new tab/window
+        window.open(translateUrl, '_blank');
+    };
+
+    // --- Data Parsing Function (Papa Parse is only included here for TSV parsing functionality) ---
     function parseTSV(tsvString) {
         const results = Papa.parse(tsvString, {
             header: true,
@@ -202,7 +228,6 @@
 
             processedCourse.Length = processedCourse.YearLong === 'TRUE' ? 'Year-Long' : (processedCourse.Semester === 'TRUE' ? 'Semester' : '');
             
-            // Sets the PrimaryCredit for sorting (first item only)
             const credits = processedCourse.TranscriptCreditType.split(',');
             processedCourse.PrimaryCredit = credits.length > 0 ? credits[0].trim() : processedCourse.TranscriptCreditType;
             
@@ -217,7 +242,6 @@
         const tbody = document.getElementById('courseTableBody');
         tbody.innerHTML = '';
         
-        // Note: The colspan count must be 7 to cover all columns
         if (data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No courses match your current filters.</td></tr>';
             return;
@@ -227,7 +251,7 @@
             const tr = document.createElement('tr');
             const cleanData = (str) => str ? str.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : '';
 
-            // 1. Details Button (Leftmost column)
+            // Data passed to the modal
             const detailedDescription = `
                 <button class="btn-info" 
                     onclick="showModal(
@@ -243,14 +267,22 @@
             `;
 
             tr.innerHTML = `
-                <td>${detailedDescription}</td> <td>${course.Department}</td> <td>${course.CourseNumber}</td> <td>${course.CourseTitle} ${course.HonorsOption === 'TRUE' ? ' <strong>- H</strong>' : ''}</td> <td>${course.TranscriptCreditType}</td> <td>${course.GradesOffered}</td> <td>${course.Length}</td> `;
+                <td>${detailedDescription}</td>
+                <td>${course.Department}</td>
+                <td>${course.CourseNumber}</td>
+                <td>${course.CourseTitle} ${course.HonorsOption === 'TRUE' ? ' <strong>- H</strong>' : ''}</td>
+                <td>${course.TranscriptCreditType}</td>
+                <td>${course.GradesOffered}</td>
+                <td>${course.Length}</td>
+            `;
             tbody.appendChild(tr);
         });
         document.getElementById('courseTable').style.display = 'table';
         document.getElementById('loading-message').style.display = 'none';
     }
 
-    // --- Sorting (Vanilla JS) ---
+    // --- Sorting and Filtering (Logic remains the same) ---
+
     function sortData(column, direction) {
         FILTERED_DATA.sort((a, b) => {
             let valA = a[column];
@@ -270,7 +302,6 @@
         renderTable(FILTERED_DATA);
     }
 
-    // --- Filtering (Vanilla JS) ---
     function applyFilters() {
         const deptFilter = document.getElementById('departmentFilter').value;
         const lengthFilter = document.getElementById('lengthFilter').value;
@@ -285,14 +316,21 @@
         sortData(currentSortColumn, currentSortDirection);
     }
 
-    // --- Modal Handler (Vanilla JS) ---
+    // --- Modal Handler (Updated to store description) ---
     window.showModal = function(title, description, fees, college, prerequisites, creditType) {
+        // Store the description globally before opening the modal
+        currentDescription = description;
+
         document.getElementById('modalTitle').textContent = title;
         document.getElementById('modalCreditType').innerHTML = `<strong>Credit Type(s):</strong> ${creditType || 'N/A'}`;
         document.getElementById('modalPrerequisites').innerHTML = `<strong>Prerequisites:</strong> ${prerequisites || 'None'}`;
         document.getElementById('modalDescription').textContent = description;
         document.getElementById('modalFees').innerHTML = `<strong>Fees/Equipment:</strong> ${fees || 'None'}`;
         document.getElementById('modalCollege').innerHTML = `<strong>College Alignment:</strong> ${college || 'N/A'}`;
+        
+        // Attach the stored description to the translate button click event
+        document.getElementById('translateButton').onclick = () => window.translateDescription(currentDescription);
+        
         document.getElementById('courseModal').style.display = 'flex';
     }
 
